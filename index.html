@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Calculator</title>
+
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- PyScript setup -->
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Left Side Content -->
+        <div class="content">
+            <!-- Header -->
+            <h1>Grade Calculator</h1>
+
+            <!-- Input Section with Flexbox layout -->
+            <div class="input-container">
+                <label for="prelim-grade"><strong>Prelim Grade (0-100):</strong></label>
+                <input type="number" id="prelim-grade" placeholder="Enter grade" min="0" max="100" />
+            </div>
+
+            <!-- Instructions -->
+            <ul class="instructions">
+                <li>Enter your Prelim grade (0-100).</li>
+                <li>Click "Calculate" to compute the required grades.</li>
+                <li>Check "Randomize Results" for random grade generation.</li>
+            </ul>
+
+            <!-- Randomize Checkbox -->
+            <div class="checkbox-group">
+                <input type="checkbox" id="randomize" />
+                <label for="randomize">Randomize Results</label>
+            </div>
+
+            <!-- Calculate Button -->
+            <button id="calculate-btn">Calculate</button>
+        </div>
+
+        <!-- Results Section fixed layout -->
+        <div class="results">
+            <h2>Results</h2>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <!-- PyScript code -->
+<py-script>
+    import pyodide
+    from js import document
+    import random
+
+    def calculate_grades(prelim, randomize=False):
+        try:
+            # Validate input
+            prelim = float(prelim)
+            if not (0 <= prelim <= 100):
+                return "Please enter a valid Prelim grade between 0 and 100."
+
+            # Constants for grade thresholds and weightages
+            passing_grade = 75
+            deans_grade = 90
+
+            prelim_weight = 0.20
+            midterm_weight = 0.30
+            final_weight = 0.50
+
+            # Calculate the remaining grades needed to pass or qualify for Dean's List
+            remaining_passing = passing_grade - prelim * prelim_weight
+            remaining_deans = deans_grade - prelim * prelim_weight
+
+            # Function to randomize grades ensuring they stay within bounds
+            def randomize_grades(remaining):
+                min_grade = 70  # New minimum cap for randomized results
+                max_midterm = min(100, remaining / midterm_weight)
+                
+                if max_midterm < min_grade:
+                    midterm_random = max_midterm  # Use max_midterm if below the cap
+                else:
+                    midterm_random = random.uniform(min_grade, max_midterm)
+                
+                final_random = (remaining - midterm_random * midterm_weight) / final_weight
+                final_random = max(min(final_random, 100), min_grade)  # Cap final at min 70
+                return midterm_random, final_random
+
+            # Function to calculate equal grades for midterm and final
+            def calculate_equal_grades(remaining):
+                equal_grade = remaining / (midterm_weight + final_weight)
+                return equal_grade, equal_grade
+
+            # Check if qualification for Dean's List is possible
+            def can_qualify_for_deans(remaining):
+                return remaining / (midterm_weight + final_weight) <= 100
+
+            # Get the grades to pass
+            if randomize:
+                required_midterm, required_final = randomize_grades(remaining_passing)
+
+                # Check if Dean's Lister is possible and calculate grades
+                if can_qualify_for_deans(remaining_deans):
+                    required_midterm_deans, required_final_deans = randomize_grades(remaining_deans)
+                    return f"""
+                        <strong>Prelim Grade: {prelim}</strong>
+                        Randomized Results:
+                        Required Midterm Grade to Pass: {required_midterm:.2f}
+                        Required Final Grade to Pass: {required_final:.2f}
+                        <strong>To qualify for Dean's Lister:</strong>
+                        Required Midterm Grade: {required_midterm_deans:.2f}
+                        Required Final Grade: {required_final_deans:.2f}
+                    """
+                else:
+                    return f"""
+                    <strong>Prelim Grade: {prelim}</strong>
+                    Randomized Results:
+                    Required Midterm Grade to Pass: {required_midterm:.2f}
+                    Required Final Grade to Pass: {required_final:.2f}
+                    <strong>You cannot qualify for Dean's Lister.</strong>
+                    """
+            else:
+                required_midterm, required_final = calculate_equal_grades(remaining_passing)
+
+                # Check if Dean's Lister is possible
+                can_dean = can_qualify_for_deans(remaining_deans)
+                required_midterm_deans, required_final_deans = (100, 100) if not can_dean else calculate_equal_grades(remaining_deans)
+
+                required_midterm = min(required_midterm, 100)
+                required_final = min(required_final, 100)
+
+                if can_dean:
+                    return f"""
+                    <strong>Prelim Grade: {prelim}</strong>
+                    Required Midterm Grade to Pass: {required_midterm:.2f}
+                    Required Final Grade to Pass: {required_final:.2f}
+                    <strong>To qualify for Dean's Lister:</strong>
+                    Required Midterm Grade: {required_midterm_deans:.2f}
+                    Required Final Grade: {required_final_deans:.2f}
+                    """
+                else:
+                    return f"""
+                    <strong>Prelim Grade: {prelim}</strong>
+                    Required Midterm Grade to Pass: {required_midterm:.2f}
+                    Required Final Grade to Pass: {required_final:.2f}
+                    <strong>You cannot qualify for Dean's Lister.</strong>
+                    """
+        except ValueError:
+            return "Please enter a valid numeric grade."
+
+    def calculateGrades(event):
+        prelim_grade = document.getElementById("prelim-grade").value
+        randomize = document.getElementById("randomize").checked
+        result = calculate_grades(prelim_grade, randomize)
+        document.getElementById("result").innerHTML = result
+
+    calculate_proxy = pyodide.ffi.create_proxy(calculateGrades)
+    button = document.getElementById("calculate-btn")
+    button.addEventListener("click", calculate_proxy)
+</py-script>
+
+</body>
+
+</html>
